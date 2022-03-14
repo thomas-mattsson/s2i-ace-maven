@@ -24,6 +24,14 @@ spec:
         The API path prefix, GitHub Enterprise has a prefix e.g. /api/v3
       name: API_PATH_PREFIX
       type: string
+    - description: |
+        The git repo that should have its status updated
+      type: string
+      name: GIT_REPO
+    - description: |
+        The git repo revision that should have its status updated
+      type: string
+      name: GIT_REVISION
     - default: github
       description: >
         The name of the kubernetes secret that contains the GitHub token,
@@ -57,10 +65,6 @@ spec:
         `failure`, `pending`, or `success`.
       name: STATE
       type: string
-  resources:
-    inputs:
-      - name: source
-        type: git
   steps:
     - env:
         - name: GITHUBTOKEN
@@ -84,12 +88,12 @@ spec:
 
         state = "$(params.STATE)"
 
-        print("https:\/\/[^\/]*\/(.*)")
+        print("https:\/\/[^\/]*\/([^.]*)(?:\.git)?")
 
-        print("$(resources.inputs.source.url)")
+        print("$(params.GIT_REPO)")
 
-        x = re.search(r"https:\/\/[^\/]*\/(.*)",
-        "$(resources.inputs.source.url)")
+        x = re.search(r"https:\/\/[^\/]*\/([^.]*)(?:\.git)?",
+        "$(params.GIT_REPO)")
 
         print(x)
 
@@ -101,11 +105,15 @@ spec:
 
         if state == 'Succeeded':
           state = 'success'
-        elif state == 'Failure':
+        elif state == 'Failed':
           state = 'failure'
+        else:
+          print("Unknown pipeline state:")
+          print(state);
+          state = 'error'
 
         status_url = "$(params.API_PATH_PREFIX)" + "/repos/" + repo +
-        "/statuses/" + "$(resources.inputs.source.revision)"
+        "/statuses/" + "$(params.GIT_REVISION)"
 
         data = {
             "state": state,
@@ -137,4 +145,4 @@ spec:
             print("Error: %d" % (resp.status))
             print(resp.read())
         else:
-          print("GitHub status '$(params.STATE)' has been set on " + repo + "#$(resources.inputs.source.revision) ")
+          print("GitHub status '$(params.STATE)' has been set on " + repo + "#$(params.GIT_REVISION) ")
